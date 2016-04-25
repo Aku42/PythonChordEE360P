@@ -77,16 +77,17 @@ class Local(object):
 		return inrange(id, self.predecessor_.id(1), self.id(1))
 
 	def shutdown(self):
-		self.shutdown_ = Trues
+		self.shutdown_ = True
 		self.socket_.shutdown(socket.SHUT_RDWR)
 		self.socket_.close()
 
 	# logging function
 	def log(self, info):
-	    f = open("/tmp/chord.log", "a+")
-	    f.write(str(self.id()) + " : " +  info + "\n")
-	    f.close()
+	    #f = open("/tmp/chord.log", "a+")
+	    #f.write(str(self.id()) + " : " +  info + "\n")
+	    #f.close()
 	    #print str(self.id()) + " : " +  info
+		return
 
 	def start(self):
 		# start the daemons

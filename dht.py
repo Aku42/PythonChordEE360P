@@ -2,6 +2,9 @@ from chord import Local, Daemon, repeat_and_sleep, inrange
 from remote import Remote
 from address import Address
 import json
+import socket
+import time
+import traceback
 
 # data structure that represents a distributed hash table
 class DHT(object):
@@ -35,6 +38,7 @@ class DHT(object):
 			return json.dumps({'status':'ok', 'data':self.get(data['key'])})
 		except Exception:
 			# key not present
+			traceback.print_exc()
 			return json.dumps({'status':'failed'})
 
 	def _set(self, request):
@@ -44,8 +48,9 @@ class DHT(object):
 			value = data['value']
 			self.set(key, value)
 			return json.dumps({'status':'ok'})
-		except Exception:
 			# something is not working
+		except Exception:
+			traceback.print_exc()
 			return json.dumps({'status':'failed'})
 
 	def get(self, key):
@@ -67,9 +72,28 @@ class DHT(object):
 				return value['data']
 			except Exception:
 				return None
+
 	def set(self, key, value):
-		# eventually it will distribute the keys
-		self.data_[key] = value
+		# get successor for key
+		suc = self.local_.find_successor(hash(key))
+		if self.local_.id() == suc.id():
+			#its us
+			self.data_[key] = value
+			print "Stored at %s" % self.local_.id()
+			return True
+		try:
+			print "Recieved at %s" % self.local_.id()
+			response = suc.command('set %s' % json.dumps({'key':key,'value':value}))
+			if not response:
+				raise Exception
+			value = json.loads(response)
+			if value['status'] != 'ok':
+				raise Exception
+			return True
+		except Exception:
+			return False
+
+
 
 	@repeat_and_sleep(5)
 	def distribute_data(self):
@@ -96,10 +120,11 @@ class DHT(object):
 		return True
 
 def create_dht(lport):
-	laddress = map(lambda port: Address('127.0.0.1', port), lport)
-	r = [DHT(laddress[0])]
-	for address in laddress[1:]:
-		r.append(DHT(address, laddress[0]))
+	#laddress = map(lambda port: Address('127.0.0.1', port), lport)
+	r = [DHT(lport[0])]
+	for address in lport[1:]:
+		r.append(DHT(address, lport[0]))
+		time.sleep(.5)
 	return r
 
 
