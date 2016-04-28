@@ -23,7 +23,11 @@ locals_list   = create_dht(address_list)
 
 print "Done creating peers, our pid %s is" % os.getpid()
 
+def getid(address, offset = 0):
+	return str((address.__hash__() + offset) % SIZE)
+
 while 1:
+	time.sleep(1)
 	command = raw_input("Command: ")
 	if command == "add_node":
 		while 1:
@@ -34,10 +38,26 @@ while 1:
 				address_list.append(address)
 				locals_list.append(Local(address, locals_list[random.randrange(len(locals_list))].address))
 				break
-	else:
-		address = address_list[random.randrange(len(address_list))]
+	elif command.split(' ')[0] == "shutdown":
+		id = command.split(' ')[1]
+		for address in address_list:
+			if id == getid(address):
+				break
 		s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 		s.connect((address.ip, address.port))
+		s.sendall(command + "\r\n")
+		print "Response : '%s'" % s.recv(10000)
+		s.close()
+	else:
+		connectFlag = False
+		while not connectFlag:
+			address = address_list[random.randrange(len(address_list))]
+			s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+			try:
+				s.connect((address.ip, address.port))
+				connectFlag = True
+			except socket.error:
+				address_list.remove(address)
 		s.sendall(command + "\r\n")
 		print "Response : '%s'" % s.recv(10000)
 		s.close()

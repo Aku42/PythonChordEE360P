@@ -103,6 +103,10 @@ class Local(object):
 	def ping(self):
 		return True
 
+	def address(self):
+		temp = {"ip":self.address_.ip,"port":self.address_.port}
+		return temp
+
 	def join(self, remote_address = None):
 		# initially just set successor
 		self.finger_ = map(lambda x: None, range(LOGSIZE))
@@ -193,9 +197,10 @@ class Local(object):
 			if remote.ping():
 				self.finger_[0] = remote
 				return remote
-		print "No successor available, aborting"
-		self.shutdown_ = True
-		sys.exit(-1)
+		return self
+		#print "No successor available, aborting"
+		#self.shutdown_ = True
+		#sys.exit(-1)
 
 	def predecessor(self):
 		return self.predecessor_
@@ -206,7 +211,7 @@ class Local(object):
 		# - we have a pred(n)
 		# - id is in (pred(n), n]
 		self.log("find_successor")
-		if self.predecessor() and \
+		if self.predecessor() and self.predecessor().ping() and\
 		   inrange(id, self.predecessor().id(1), self.id(1)):
 			return self
 		node = self.find_predecessor(id)
@@ -286,6 +291,7 @@ class Local(object):
 			if command == 'shutdown':
 				self.socket_.close()
 				self.shutdown_ = True
+				print "Shutting down %s" % self.id()
 				self.log("shutdown started")
 				break
 		self.log("execution terminated")
