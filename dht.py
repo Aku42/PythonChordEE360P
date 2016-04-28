@@ -5,7 +5,7 @@ import json
 import socket
 import time
 import traceback
-
+import thread
 # data structure that represents a distributed hash table
 class DHT(object):
 	def __init__(self, local_address, remote_address = None):
@@ -14,12 +14,22 @@ class DHT(object):
 			return self._set(msg)
 		def get_wrap(msg):
 			return self._get(msg)
+		def backup_wrap(msg):
+			return self._backup(msg)
+		def dump_wrap(msg):
+			return self.dump()
+		def dumpall_wrap(msg):
+			return self.dumpall()
 
 		self.data_ = {}
+		self.backup_ = {}
 		self.shutdown_ = False
 
 		self.local_.register_command("set", set_wrap)
 		self.local_.register_command("get", get_wrap)
+		self.local_.register_command("backup", backup_wrap)
+		self.local_.register_command("dump", dump_wrap)
+		self.local_.register_command("dumpall", dumpall_wrap)
 
 		self.daemons_ = {}
 		self.daemons_['distribute_data'] = Daemon(self, 'distribute_data')
@@ -55,7 +65,7 @@ class DHT(object):
 
 	def get(self, key):
 		try:
-			return self.data_[key]
+			return self.data_[key]['value']
 		except Exception:
 			# not in our range
 			suc = self.local_.find_successor(hash(key))
@@ -73,26 +83,69 @@ class DHT(object):
 			except Exception:
 				return None
 
+	def sendbackup(self):
+		temp = self.local_.successor()
+		for i in [0,1]:
+		#while temp != self.local_:
+			print "Trying backup at %s" % temp.id()
+			response = temp.command('backup %s' % json.dumps({"id":self.local_.id(),"data":self.data_}))
+			temp = temp.successor()
+		print "Done backing up"
+
+	def setactual(self, suc, key, value):
+		suc.command('set %s' % json.dumps({'key':key,'value':value}))
+
 	def set(self, key, value):
 		# get successor for key
+		self.data_[key]={"value":value, 'backedUp':False}
 		suc = self.local_.find_successor(hash(key))
 		if self.local_.id() == suc.id():
 			#its us
 			self.data_[key] = value
 			print "Stored at %s" % self.local_.id()
-			return True
-		try:
-			print "Recieved at %s" % self.local_.id()
-			response = suc.command('set %s' % json.dumps({'key':key,'value':value}))
-			if not response:
-				raise Exception
-			value = json.loads(response)
-			if value['status'] != 'ok':
-				raise Exception
-			return True
-		except Exception:
-			return False
+			try:
+				self.sendbackup()
+				return True
+			except Exception:
+				print traceback.print_exc(Exception)
+		return True
 
+	def _backup(self, request):
+		print "Backing up: " + request + " at %s" % self.local_.id()
+		try:
+			data = json.loads(request)
+			id = data['id']
+			value = data['data']
+			self.backup(id, value)
+			return json.dumps({'status':'ok'})
+			# something is not working
+		except Exception:
+			traceback.print_exc()
+			return json.dumps({'status':'failed'})
+
+	def backup(self, id, value):
+		self.backup_[id]=value
+		return True
+
+	def dump(self):
+		dumpStr = "ID: %s" % self.local_.id() + "\n"\
+				+ "Data: %s" % json.dumps(self.data_) + "\n"\
+				+ "Backup: %s" % json.dumps(self.backup_) + "\n"
+		return dumpStr
+
+	def dumpall(self):
+		retStr = self.dump() + "\n\n"
+		temp = self.local_.successor()
+		temp2 = None
+		i = 0
+		while 1:
+			temp2 = self.local_
+			retStr+=temp.command("dump")+"\n\n"
+			temp = temp.successor()
+			#print str(temp.id()) + ":" +str(temp2.id())
+			if temp.id()==temp2.id():
+				break
+		return retStr
 
 
 	@repeat_and_sleep(5)
