@@ -104,9 +104,8 @@ class DHT(object):
 
 	def _set(self, request):
 		try:
-			data = json.loads(request)
-			key = data['key']
-			value = data['value']
+			key = request.split(' ')[0]
+			value = request.split(' ')[1]
 			self.set(key, value)
 			return json.dumps({'status':'ok'})
 			# something is not working
@@ -169,7 +168,7 @@ class DHT(object):
 		suc = self.local_.find_successor(hash(key))
 		if self.local_.id() == suc.id():
 			#its us
-			print "Stored at %s" % self.local_.id()
+			#print "Stored at %s" % self.local_.id()
 			self.backupFlag = True
 			try:
 				#self.data_[key]['backedUp']=True
@@ -179,7 +178,7 @@ class DHT(object):
 		return True
 
 	def _backup(self, request):
-		print "Backing up: " + request + " at %s" % self.local_.id()
+		#print "Backing up: " + request + " at %s" % self.local_.id()
 		try:
 			data = json.loads(request)
 			id = data['id']
@@ -236,10 +235,10 @@ class DHT(object):
 			suc = self.local_.find_successor(hash(key))
 			if self.local_.id() != suc.id():
 				try:
-					suc.command("set %s" % json.dumps({'key':key, 'value':self.data_[key]}))
+					suc.command("set "+key+" "+self.data_[key])
 					# print "moved %s into %s" % (key, node.id())
 					to_remove.append(key)
-					print "migrated"
+					#print "migrated"
 				except socket.error:
 					print "error migrating"
 					# we'll migrate it next time
